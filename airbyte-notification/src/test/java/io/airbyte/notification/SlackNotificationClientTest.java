@@ -4,14 +4,13 @@
 
 package io.airbyte.notification;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.*;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.config.Notification;
 import io.airbyte.config.Notification.NotificationType;
@@ -105,6 +104,27 @@ class SlackNotificationClientTest {
         new SlackNotificationClient(new Notification()
             .withNotificationType(NotificationType.SLACK)
             .withSlackConfiguration(new SlackNotificationConfiguration().withWebhook(WEBHOOK_URL + server.getAddress().getPort() + TEST_PATH)));
+    assertTrue(client.notifyFailure(message));
+    assertFalse(client.notifySuccess(message));
+  }
+
+  @Test
+  void testNotifyBasicAuthentication() throws IOException, InterruptedException {
+    final String message = UUID.randomUUID().toString();
+
+    HttpContext handlerCtx = server.createContext(TEST_PATH, new ServerHandler(message));
+    handlerCtx.setAuthenticator(new BasicAuthenticator("tests") {
+      @Override
+      public boolean checkCredentials(String username, String password) {
+        return username.equals("username") && password.equals("password");
+      }
+    });
+
+    final SlackNotificationClient client =
+            new SlackNotificationClient(new Notification()
+                    .withNotificationType(NotificationType.SLACK)
+                    .withSlackConfiguration(new SlackNotificationConfiguration().withWebhook("http://username:password@localhost:" + server.getAddress().getPort() + TEST_PATH)));
+
     assertTrue(client.notifyFailure(message));
     assertFalse(client.notifySuccess(message));
   }

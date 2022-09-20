@@ -14,6 +14,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Base64;
 import java.util.UUID;
 import org.apache.logging.log4j.util.Strings;
 import org.slf4j.Logger;
@@ -125,11 +126,19 @@ public class SlackNotificationClient extends NotificationClient {
     final ImmutableMap<String, String> body = new Builder<String, String>()
         .put("text", message)
         .build();
-    final HttpRequest request = HttpRequest.newBuilder()
+    final URI uri = URI.create(config.getWebhook());
+    HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
         .POST(HttpRequest.BodyPublishers.ofString(Jsons.serialize(body)))
-        .uri(URI.create(config.getWebhook()))
-        .header("Content-Type", "application/json")
-        .build();
+        .uri(uri)
+        .header("Content-Type", "application/json");
+
+    if (uri.getUserInfo() != null && !uri.getUserInfo().isBlank()) {
+      final String[] userInfo = uri.getUserInfo().split(":");
+      final String basicAuth = "Basic " + Base64.getEncoder().encodeToString((userInfo[0] + ":" + userInfo[1]).getBytes());
+      requestBuilder.header("Authorization", basicAuth);
+    }
+
+    final HttpRequest request = requestBuilder.build();
     final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     if (isSuccessfulHttpResponse(response.statusCode())) {
       LOGGER.info("Successful notification ({}): {}", response.statusCode(), response.body());
